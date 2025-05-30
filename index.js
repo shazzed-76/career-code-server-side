@@ -28,7 +28,8 @@ async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
-    const jobColl = client.db('jobPortalDB').collection('jobs')
+    const jobColl = client.db('jobPortalDB').collection('jobs');
+    const applicationColl = client.db("jobPortalDB").collection('applications');
 
     app.get('/recent/jobs', async(req, res) => {
         const sortBy = {post_date: -1}
@@ -41,6 +42,15 @@ async function run() {
        const result = await jobColl.findOne(query);
        res.send(result)
     })
+
+
+    //applications related apis
+    app.post('/application/apply', async(req, res) => {
+      const result = await applicationColl.insertOne(req.body);
+      res.send(result)
+    })
+
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
