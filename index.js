@@ -1,5 +1,5 @@
 require("dotenv").config();
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const express = require("express");
 const app = express();
 const port = process.env.PORT || 3000;
@@ -34,6 +34,12 @@ async function run() {
         const sortBy = {post_date: -1}
         const result = await jobColl.find().sort(sortBy).limit(3).toArray();
         res.send(result)
+    })
+
+    app.get('/jobs/details/:id', async(req, res) => {
+       const query = { _id: new ObjectId(req.params.id)}
+       const result = await jobColl.findOne(query);
+       res.send(result)
     })
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
