@@ -50,6 +50,23 @@ async function run() {
       res.send(result)
     })
 
+    app.get("/application/my", async(req, res) => {
+       const user = req.query.email;
+       console.log(user)
+       const result = await applicationColl.find({email: user}).toArray();
+
+       //get specific job data by job id
+       for(const application of result){
+        const job = await jobColl.findOne({ _id: new ObjectId(application.jobId) });
+
+         application.job_title = job.job_title;
+         application.company_name = job.company_name;        
+         application.location = job.location;        
+         
+       }
+       res.send(result)
+    });
+
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
