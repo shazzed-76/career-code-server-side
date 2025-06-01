@@ -31,6 +31,11 @@ async function run() {
     const jobColl = client.db('jobPortalDB').collection('jobs');
     const applicationColl = client.db("jobPortalDB").collection('applications');
 
+
+    app.get('/jobs', async(req, res) => {
+       const result = await jobColl.find().toArray();
+       res.send(result)
+    })
     app.get('/recent/jobs', async(req, res) => {
         const sortBy = {post_date: -1}
         const result = await jobColl.find().sort(sortBy).limit(3).toArray();
