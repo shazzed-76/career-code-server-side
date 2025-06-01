@@ -51,8 +51,7 @@ async function run() {
     })
 
     app.get("/application/my", async(req, res) => {
-       const user = req.query.email;
-       console.log(user)
+       const user = req.query.email;      
        const result = await applicationColl.find({email: user}).toArray();
 
        //get specific job data by job id
@@ -65,7 +64,12 @@ async function run() {
          
        }
        res.send(result)
-    });
+    })
+
+    app.delete('/application/delete/:id', async(req, res) => {
+       const result = await applicationColl.deleteOne({_id: new ObjectId(req.params.id)});
+       res.send(result)
+    })
 
 
     // Send a ping to confirm a successful connection
