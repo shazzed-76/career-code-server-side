@@ -36,6 +36,12 @@ async function run() {
        const result = await jobColl.find().toArray();
        res.send(result)
     })
+
+    app.post('/jobs', async(req, res) => {
+        const newJob = req.body;
+        const result = await jobColl.insertOne(newJob);
+        res.send(result)
+    }) 
     app.get('/recent/jobs', async(req, res) => {
         const sortBy = {post_date: -1}
         const result = await jobColl.find().sort(sortBy).limit(3).toArray();
