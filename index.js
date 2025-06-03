@@ -33,7 +33,11 @@ async function run() {
 
 
     app.get('/jobs', async(req, res) => {
-       const result = await jobColl.find().toArray();
+      let query = {};
+      if (req.query.email) {
+        query = { hr_email: req.query.email };
+      }
+       const result = await jobColl.find(query).toArray();
        res.send(result)
     })
 
@@ -56,15 +60,12 @@ async function run() {
 
 
     //applications related apis
-    app.post('/application/apply', async(req, res) => {
-      const result = await applicationColl.insertOne(req.body);
-      res.send(result)
-    })
-
+    
     app.get("/application/my", async(req, res) => {
-       const user = req.query.email;      
-       const result = await applicationColl.find({email: user}).toArray();
-
+      const user = req.query.email;      
+      const result = await applicationColl.find({email: user}).toArray();
+      
+      
        //get specific job data by job id
        for(const application of result){
         const job = await jobColl.findOne({ _id: new ObjectId(application.jobId) });
@@ -76,6 +77,16 @@ async function run() {
        }
        res.send(result)
     })
+
+    app.get('/applications/job/:job_id', async(req, res) => {
+        const result = await applicationColl.find({ jobId: req.params.job_id}).toArray();
+        res.send(result)
+    })
+
+    app.post("/application/apply", async (req, res) => {
+      const result = await applicationColl.insertOne(req.body);
+      res.send(result);
+    });
 
     app.delete('/application/delete/:id', async(req, res) => {
        const result = await applicationColl.deleteOne({_id: new ObjectId(req.params.id)});
