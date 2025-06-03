@@ -88,6 +88,19 @@ async function run() {
       res.send(result);
     });
 
+    app.patch("/applications/:id", async(req, res) => {
+        const {id} = req.params;
+        const filter = { _id: new ObjectId(id)}
+        const updatedField = {
+          $set: {
+            status: req.body.status
+          }
+        }
+
+        const result = await applicationColl.updateOne(filter, updatedField, { upsert: true });
+        res.send(result)
+    })
+
     app.delete('/application/delete/:id', async(req, res) => {
        const result = await applicationColl.deleteOne({_id: new ObjectId(req.params.id)});
        res.send(result)
