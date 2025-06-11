@@ -1,7 +1,8 @@
 require("dotenv").config();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const express = require("express");
-const jwt = require('jsonwebtoken')
+const admin = require("firebase-admin");
+const verifyEmail = require('./middleware/verifyEmail');
 const app = express();
 const port = process.env.PORT || 3000;
 const cors = require("cors");
@@ -10,9 +11,32 @@ const cors = require("cors");
 app.use(cors());
 app.use(express.json());
 
-app.get("/", (req, res) => {
-  res.send("career code server is running.......");
+//firebase admin set up
+const serviceAccount = require("./firebase_private_key.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
 });
+
+//middle ware to verify firebase token
+const verifyFirebaseToken = async(req, res, next) => {
+   const authHeader = req.headers.authorization;
+    console.log(authHeader)
+   if(!authHeader || !authHeader.startsWith("Bearer ") ){
+     return res.status(401).send({ message: "No token provided." });
+   }
+
+   const token = authHeader.split(' ')[1];
+   console.log(token)
+   try {
+    const decodedToken = await admin.auth().verifyIdToken(token);
+     req.user = decodedToken;
+     next() 
+
+   } catch(error) {
+     return  res.status(403).send({ message: "Invalid or expired token." });
+   }
+}
 
 const uri = process.env.DB_URI;
 
@@ -29,96 +53,93 @@ async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
-    const jobColl = client.db('jobPortalDB').collection('jobs');
-    const applicationColl = client.db("jobPortalDB").collection('applications');
+    const jobColl = client.db("jobPortalDB").collection("jobs");
+    const applicationColl = client.db("jobPortalDB").collection("applications");
 
-
-    //JWT relate APIs 
-    app.post('/jwt', async(req, res) => {
-        const {email} = req.body;
-        const token = jwt.sign({email}, 'secret', {expiresIn: '1h'});
-        res.send({token})
-    })
     //Job related apis
-    app.get('/jobs', async(req, res) => {
+    app.get("/jobs", async (req, res) => {
       let query = {};
       if (req.query.email) {
         query = { hr_email: req.query.email };
       }
-       const result = await jobColl.find(query).toArray();
-       for(const job of result){
-         const applicationQuery = { jobId: job._id.toString()}
-         const  applicants = await applicationColl.countDocuments(applicationQuery);
-         job.applicants = applicants
-       }
-       res.send(result)
-    })
+      const result = await jobColl.find(query).toArray();
+      for (const job of result) {
+        const applicationQuery = { jobId: job._id.toString() };
+        const applicants = await applicationColl.countDocuments(
+          applicationQuery
+        );
+        job.applicants = applicants;
+      }
+      res.send(result);
+    });
 
-    app.post('/jobs', async(req, res) => {
-        const newJob = req.body;
-        const result = await jobColl.insertOne(newJob);
-        res.send(result)
-    }) 
-    app.get('/recent/jobs', async(req, res) => {
-        const sortBy = {post_date: -1}
-        const result = await jobColl.find().sort(sortBy).limit(3).toArray();
-        res.send(result)
-    })
+    app.post("/jobs", async (req, res) => {
+      const newJob = req.body;
+      const result = await jobColl.insertOne(newJob);
+      res.send(result);
+    });
+    app.get("/recent/jobs", async (req, res) => {
+      const sortBy = { post_date: -1 };
+      const result = await jobColl.find().sort(sortBy).limit(3).toArray();
+      res.send(result);
+    });
 
-    app.get('/jobs/details/:id', async(req, res) => {
-       const query = { _id: new ObjectId(req.params.id)}
-       const result = await jobColl.findOne(query);
-       res.send(result)
-    })
-
+    app.get("/jobs/details/:id", async (req, res) => {
+      const query = { _id: new ObjectId(req.params.id) };
+      const result = await jobColl.findOne(query);
+      res.send(result);
+    });
 
     //applications related apis
-    
-    app.get("/application/my", async(req, res) => {
-      const user = req.query.email;      
-      const result = await applicationColl.find({email: user}).toArray();
-      
-      
-       //get specific job data by job id
-       for(const application of result){
-        const job = await jobColl.findOne({ _id: new ObjectId(application.jobId) });
+    app.get("/application/my", verifyFirebaseToken, verifyEmail, async (req, res) => {
+      const user = req.query.email;
+      const result = await applicationColl.find({ email: user }).toArray();
 
-         application.job_title = job.job_title;
-         application.company_name = job.company_name;        
-         application.location = job.location;        
-         
-       }
-       res.send(result)
-    })
+      for (const application of result) {
+        const job = await jobColl.findOne({
+          _id: new ObjectId(application.jobId),
+        });
 
-    app.get('/applications/job/:job_id', async(req, res) => {
-        const result = await applicationColl.find({ jobId: req.params.job_id}).toArray();
-        res.send(result)
-    })
+        application.job_title = job.job_title;
+        application.company_name = job.company_name;
+        application.location = job.location;
+      }
+      res.send(result);
+    });
+
+    app.get("/applications/job/:job_id", async (req, res) => {
+      const result = await applicationColl
+        .find({ jobId: req.params.job_id })
+        .toArray();
+      res.send(result);
+    });
 
     app.post("/application/apply", async (req, res) => {
       const result = await applicationColl.insertOne(req.body);
       res.send(result);
     });
 
-    app.patch("/applications/:id", async(req, res) => {
-        const {id} = req.params;
-        const filter = { _id: new ObjectId(id)}
-        const updatedField = {
-          $set: {
-            status: req.body.status
-          }
-        }
+    app.patch("/applications/:id", async (req, res) => {
+      const { id } = req.params;
+      const filter = { _id: new ObjectId(id) };
+      const updatedField = {
+        $set: {
+          status: req.body.status,
+        },
+      };
 
-        const result = await applicationColl.updateOne(filter, updatedField, { upsert: true });
-        res.send(result)
-    })
+      const result = await applicationColl.updateOne(filter, updatedField, {
+        upsert: true,
+      });
+      res.send(result);
+    });
 
-    app.delete('/application/delete/:id', async(req, res) => {
-       const result = await applicationColl.deleteOne({_id: new ObjectId(req.params.id)});
-       res.send(result)
-    })
-
+    app.delete("/application/delete/:id", async (req, res) => {
+      const result = await applicationColl.deleteOne({
+        _id: new ObjectId(req.params.id),
+      });
+      res.send(result);
+    });
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
